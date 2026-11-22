@@ -108,13 +108,19 @@ Uninstall removes the user launcher and isolated bridge. It keeps your profiles,
 
 ## Paid setup, fleet deployment, and support
 
-Akita Engineering offers paid services for individuals and teams.
+Akita Engineering sells remote setup, fleet deployment, and support. The Community Edition stays free, including the right to install it on every compatible machine. The fee pays for Akita's work. The [price list](COMMERCIAL.md) states what each service includes, how tax is handled, and how to ask for a quote.
 
-- **Setup** covers the Linux driver, the Onshape browser setup, and device tuning and button profiles.
-- **Fleet deployment** helps teams plan a rollout across Linux workstations and standardize installation and device settings.
-- **Support** helps diagnose driver, browser, or device input problems.
+Prices exclude tax. Use the column for the billing customer's country. Other countries are quoted on request.
 
-For a quote, tell us your Linux distributions, device models, and the number of workstations. [Email Akita Engineering](mailto:info@akitaengineering.com?subject=Akita%20SpaceMouse%20services)
+| Service | United States | Canada | European Union |
+| --- | ---: | ---: | ---: |
+| Remote setup for one workstation, up to 45 minutes | US$109 | C$149 | €99 |
+| On-demand troubleshooting, per hour | US$149 | C$169 | €119 |
+| Fleet pilot, up to five workstations on one Linux and browser configuration | US$499 | C$649 | €449 |
+| Assisted rollout after a successful pilot, per additional matching workstation | US$39 | C$49 | €39 |
+| Monthly team support, up to ten covered workstations and one pooled hour | US$149 | C$199 | €139 |
+
+[Email Akita Engineering](mailto:info@akitaengineering.com?subject=Akita%20SpaceMouse%20services) with the billing country, Linux distributions, browser, device models, and workstation count.
 
 ## License
 

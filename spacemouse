@@ -12,6 +12,8 @@ usage() {
     cat <<'HELP'
 Akita SpaceMouse for Linux
 An Akita Engineering project • https://www.akitaengineering.com
+Community Edition: free on every compatible Linux machine.
+Price list: https://github.com/AkitaEngineering/Akita-SpaceMouse-Linux/blob/main/COMMERCIAL.md
 
 Usage: spacemouse [command] [options]
 

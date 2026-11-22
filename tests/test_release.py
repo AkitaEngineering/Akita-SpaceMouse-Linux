@@ -82,6 +82,27 @@ class LauncherTest(unittest.TestCase):
         self.assertFalse(profile.exists())
 
 
+class CommercialOfferTest(unittest.TestCase):
+    def test_published_rates_match_the_price_list(self):
+        readme = (ROOT / "README.md").read_text()
+        commercial = (ROOT / "COMMERCIAL.md").read_text()
+        self.assertIn("(COMMERCIAL.md)", readme)
+        self.assertIn("as many compatible Linux machines", readme)
+        self.assertIn("GPL-3.0-only", commercial)
+        for price in (
+            "US$109", "C$149", "€99",
+            "US$149", "C$169", "€119",
+            "US$499", "C$649", "€449",
+            "US$39", "C$49", "€39",
+            "C$199", "€139",
+            "C$1,629",
+        ):
+            with self.subTest(price=price):
+                self.assertIn(price, commercial)
+                if price != "C$1,629":
+                    self.assertIn(price, readme)
+
+
 class OnshapeInputTest(unittest.IsolatedAsyncioTestCase):
     async def test_split_packet_and_press_only_mapping(self):
         class Controller:

@@ -10,7 +10,7 @@ service=spacenavd.service
 daemon_dir=/usr/local/lib/spacemouse
 override=/etc/systemd/system/$service.d/60-spacemouse.conf
 config_dir=${XDG_CONFIG_HOME:-"$HOME/.config"}/spacemouse
-app_files=(driver.py button_profiles.py onshape_bridge.py install.sh spacemouse VERSION)
+app_files=(driver.py button_profiles.py onshape_bridge.py catalog.py agreement.py diagnostics.py support_desk.py akita-support.pub install.sh spacemouse VERSION)
 
 fail() {
     printf 'Akita SpaceMouse: %s\n' "$*" >&2
@@ -88,7 +88,7 @@ uninstall() {
             --restore-driver) restore=true ;;
             -h|--help)
                 printf '%s\n' 'Usage: spacemouse uninstall [--dry-run] [--purge] [--restore-driver]' \
-                    'Remove the launcher and its isolated bridge. --purge also removes button profiles.' \
+                    'Remove the launcher and its isolated bridge. --purge also removes button profiles and the installed service agreement.' \
                     '--restore-driver switches any installer-managed upstream daemon back to the distro package.'
                 return ;;
             *) fail "Unknown uninstall option $argument. See spacemouse uninstall --help." ;;
@@ -132,9 +132,9 @@ uninstall() {
         printf 'No installed SpaceMouse launcher found.\n'
     fi
     if "$purge"; then
-        printf 'Remove saved button profiles in %s\n' "$config_dir"
+        printf 'Remove saved button profiles and the service agreement in %s\n' "$config_dir"
         if ! "$dry_run"; then
-            for file in "$config_dir/buttons.json" "$config_dir/buttons.lock"; do
+            for file in "$config_dir/buttons.json" "$config_dir/buttons.lock" "$config_dir/agreement.json"; do
                 if [[ -f $file || -L $file ]]; then unlink -- "$file"; fi
             done
             if [[ -d $config_dir ]]; then rmdir --ignore-fail-on-non-empty -- "$config_dir"; fi
@@ -358,6 +358,7 @@ if [[ ! -L "$bin_dir/spacemouse" ]]; then
     ln -s -- "$app_dir/spacemouse" "$bin_dir/spacemouse"
 fi
 
+python3 -B "$app_dir/diagnostics.py" log "install finished $(<"$app_dir/VERSION")" || true
 printf '\nInstalled Akita SpaceMouse for Linux %s.\n' "$(<"$app_dir/VERSION")"
 printf 'For first-time Onshape setup, run ./spacemouse to open the bridge test page.\n'
 printf 'After setup, run spacemouse onshape or %q onshape.\n' "$bin_dir/spacemouse"

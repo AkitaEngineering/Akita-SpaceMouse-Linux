@@ -4,7 +4,7 @@ Akita Engineering sells remote setup, fleet deployment, and support for [Akita S
 
 The fee pays for Akita's work and, on the monthly plan, a response commitment. The software remains GPL-3.0-only. You can keep using, copying, and sharing the Community Edition under that license.
 
-This page is the published price list. It becomes a contract only when Akita confirms the work, price, and tax in a written quote and you accept that quote.
+This page is the published price list. The software model is ASM-LNX-CE. A quote that names the [service terms](SERVICE-TERMS.md), and your written acceptance, form the agreement. [Sales sheet](SALES.md) · [Support guide](SUPPORT.md)
 
 Akita Engineering invoices from Niagara Falls, Ontario, Canada. These rates are for business customers. Prices exclude tax. The list was set on 22 November 2026.
 
@@ -14,11 +14,11 @@ Use the column for the country of the business that receives the invoice.
 
 | Service | United States | Canada | European Union |
 | --- | ---: | ---: | ---: |
-| Remote setup for one workstation, up to 45 minutes | US$109 | C$149 | €99 |
-| On-demand troubleshooting, per hour | US$149 | C$169 | €119 |
-| Fleet pilot, up to five workstations on one Linux and browser configuration | US$499 | C$649 | €449 |
-| Assisted rollout after a successful pilot, per additional matching workstation | US$39 | C$49 | €39 |
-| Monthly team support, up to ten covered workstations and one pooled hour | US$149 | C$199 | €139 |
+| Remote setup for one workstation, up to 45 minutes. ASM-SET-1-US, ASM-SET-1-CA, ASM-SET-1-EU | US$109 | C$149 | €99 |
+| On-demand troubleshooting, per hour. ASM-SUP-H-US, ASM-SUP-H-CA, ASM-SUP-H-EU | US$149 | C$169 | €119 |
+| Fleet pilot, up to five workstations on one Linux and browser configuration. ASM-FLT-5-US, ASM-FLT-5-CA, ASM-FLT-5-EU | US$499 | C$649 | €449 |
+| Assisted rollout after a successful pilot, per additional matching workstation. ASM-ROL-1-US, ASM-ROL-1-CA, ASM-ROL-1-EU | US$39 | C$49 | €39 |
+| Monthly team support, up to ten covered workstations and one pooled hour. ASM-SUB-10-US, ASM-SUB-10-CA, ASM-SUB-10-EU | US$149 | C$199 | €139 |
 
 Akita quotes other countries on request. Include the billing country in the request.
 
@@ -42,7 +42,7 @@ Up to five workstations that share one Linux distribution and one browser. Akita
 
 After the pilot, each additional workstation that matches the piloted Linux distribution and browser. The guide is yours to follow, so the remaining machines can be installed without Akita.
 
-A Canadian team with 25 matching workstations pays C$649 for the pilot and C$49 for each of the other 20 machines: **C$1,629 before tax**. The same count is US$1,279 in the United States and €1,229 in the European Union.
+A Canadian team with 25 matching workstations buys ASM-FLT-5-CA and twenty ASM-ROL-1-CA. The price is C$649 plus C$980, **C$1,629 before tax**. The same count is US$1,279 in the United States and €1,229 in the European Union.
 
 ### Monthly team support
 

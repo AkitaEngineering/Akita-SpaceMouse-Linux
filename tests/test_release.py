@@ -39,7 +39,7 @@ class LauncherTest(unittest.TestCase):
         version = (ROOT / "VERSION").read_text().strip()
         self.assertEqual(self.run_command("--version").strip(), f"Akita SpaceMouse for Linux {version}")
         self.assertIn("akitaengineering.com", self.run_command("--help"))
-        for command in ("install", "uninstall", "doctor", "test", "tune", "buttons", "onshape"):
+        for command in ("install", "uninstall", "doctor", "test", "tune", "buttons", "onshape", "agreement", "support", "desk"):
             with self.subTest(command=command):
                 self.assertIn("spacemouse", self.run_command(command, "--help"))
 
@@ -71,15 +71,20 @@ class LauncherTest(unittest.TestCase):
 
         self.run_command("buttons", "--model", "spacepilot-pro", "set", "key-1", "fit")
         profile = Path(self.env["XDG_CONFIG_HOME"]) / "spacemouse" / "buttons.json"
+        agreement = profile.with_name("agreement.json")
+        agreement.write_text("{}\n")
         self.assertIn("Dry run", self.run_command("uninstall", "--dry-run", "--purge"))
         self.assertTrue(launcher.is_symlink())
         self.assertTrue(profile.is_file())
+        self.assertTrue(agreement.is_file())
         self.run_command("uninstall")
         self.assertFalse(launcher.is_symlink())
         self.assertFalse(app.exists())
         self.assertTrue(profile.is_file())
+        self.assertTrue(agreement.is_file())
         self.run_command("uninstall", "--purge")
         self.assertFalse(profile.exists())
+        self.assertFalse(agreement.exists())
 
 
 class CommercialOfferTest(unittest.TestCase):

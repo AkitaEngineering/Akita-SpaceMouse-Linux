@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.3 — 2026-11-22
+
+- Added SKUs, model ASM-LNX-CE, service terms, and the steps for quoting and issuing a service agreement.
+- Added signed service agreements. Akita checks workstation seats and included time when a support bundle is accepted. The Community Edition stays unlocked.
+- Added a local launcher log, a bridge crash log, and `spacemouse support bundle` for the spacenavd journal and matching core-dump list.
+
 ## v1.0.2 — 2026-11-22
 
 - Published business rates for setup, fleet deployment, and support in the United States, Canada, and the European Union.

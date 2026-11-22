@@ -89,6 +89,7 @@ Assignments take effect on the next press and are saved in `~/.config/spacemouse
 | `doctor` cannot reach the driver | Run `systemctl status spacenavd.service` and `journalctl -u spacenavd.service -b`. Use `./spacemouse install` from the release folder to finish setup. |
 | The driver is running and the device is missing | Reconnect the USB cable or receiver and run `spacemouse doctor` again. Older serial models need a port set in [`/etc/spnavrc`](https://github.com/FreeSpacenav/spacenavd/blob/v1.4/doc/example-spnavrc). |
 | The device is detected and Onshape is still | Run `spacemouse test` and move the cap. If events appear, visit the local test page, check the certificate exception and userscript in the same browser profile, and reload the Onshape document. |
+| You want Akita to look at a problem | Run `spacemouse support`, then `spacemouse support bundle`, and email the archive. |
 | The Tinkercad extension sees the device and receives no motion | `spacenavd` may have grabbed the device. To share input with the browser, set `grab = false` in `/etc/spnavrc` and run `sudo systemctl restart spacenavd`. [Driver configuration](https://github.com/FreeSpacenav/spacenavd/blob/v1.4/doc/example-spnavrc) |
 
 If you report a problem, include the launcher version, Linux distribution, device model, and browser version. Include the relevant output from `spacemouse doctor` and whether `spacemouse test` showed input. [GitHub issues](https://github.com/AkitaEngineering/Akita-SpaceMouse-Linux/issues)
@@ -114,13 +115,26 @@ Prices exclude tax. Use the column for the billing customer's country. Other cou
 
 | Service | United States | Canada | European Union |
 | --- | ---: | ---: | ---: |
-| Remote setup for one workstation, up to 45 minutes | US$109 | C$149 | €99 |
-| On-demand troubleshooting, per hour | US$149 | C$169 | €119 |
-| Fleet pilot, up to five workstations on one Linux and browser configuration | US$499 | C$649 | €449 |
-| Assisted rollout after a successful pilot, per additional matching workstation | US$39 | C$49 | €39 |
-| Monthly team support, up to ten covered workstations and one pooled hour | US$149 | C$199 | €139 |
+| Remote setup for one workstation, up to 45 minutes. ASM-SET-1-US, ASM-SET-1-CA, ASM-SET-1-EU | US$109 | C$149 | €99 |
+| On-demand troubleshooting, per hour. ASM-SUP-H-US, ASM-SUP-H-CA, ASM-SUP-H-EU | US$149 | C$169 | €119 |
+| Fleet pilot, up to five workstations on one Linux and browser configuration. ASM-FLT-5-US, ASM-FLT-5-CA, ASM-FLT-5-EU | US$499 | C$649 | €449 |
+| Assisted rollout after a successful pilot, per additional matching workstation. ASM-ROL-1-US, ASM-ROL-1-CA, ASM-ROL-1-EU | US$39 | C$49 | €39 |
+| Monthly team support, up to ten covered workstations and one pooled hour. ASM-SUB-10-US, ASM-SUB-10-CA, ASM-SUB-10-EU | US$149 | C$199 | €139 |
 
-[Email Akita Engineering](mailto:info@akitaengineering.com?subject=Akita%20SpaceMouse%20services) with the billing country, Linux distributions, browser, device models, and workstation count.
+[Email Akita Engineering](mailto:info@akitaengineering.com?subject=Akita%20SpaceMouse%20services) with the billing country, Linux distributions, browser, device models, and workstation count. The software model is ASM-LNX-CE. [Sales sheet](SALES.md) · [Service terms](SERVICE-TERMS.md)
+
+## Service agreements and support logs
+
+A service agreement covers paid work. It is not a licence key. Install the file Akita sends, then build a bundle when you want help. The bundle stays on this computer until you email it.
+
+```sh
+spacemouse agreement install agreement.json
+spacemouse agreement
+spacemouse support
+spacemouse support bundle
+```
+
+`support` shows whether this machine can read the driver journal, the local log, and the crash list. Akita checks covered workstations and included time when the bundle is accepted. [Support guide](SUPPORT.md)
 
 ## License
 

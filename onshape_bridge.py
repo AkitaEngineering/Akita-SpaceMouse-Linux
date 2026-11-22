@@ -17,6 +17,7 @@ from starlette.routing import Mount, WebSocketRoute
 from starlette.websockets import WebSocketDisconnect
 
 from button_profiles import ROLLS, VIEWS, button_action, detect_model, load_profiles
+from diagnostics import crash_file, log_event, state_dir
 from driver import PACKET, SOCKET_PATH
 
 
@@ -150,18 +151,21 @@ async def stream_input(controller, reader):
 async def onshape_websocket(websocket):
     try:
         reader, writer = await asyncio.open_unix_connection(SOCKET_PATH)
-    except OSError:
+    except OSError as error:
+        log_event(f"Onshape bridge could not reach spacenavd: {error}")
         await websocket.close(code=1013)
         return
 
     try:
+        log_event("Onshape client connected")
         controller = await create_mouse_controller(WampSession(websocket), reader)
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(stream_input(controller, reader))
             tasks.create_task(controller.wamp_state_handler.start_wamp_message_stream())
     except* WebSocketDisconnect:
-        pass
+        log_event("Onshape client disconnected")
     except* (asyncio.IncompleteReadError, ConnectionError):
+        log_event("spacenavd disconnected from the Onshape bridge")
         with suppress(WebSocketDisconnect, RuntimeError):
             await websocket.close(code=1013, reason="spacenavd disconnected")
     finally:
@@ -173,5 +177,24 @@ async def onshape_websocket(websocket):
 app = Starlette(routes=[WebSocketRoute("/", onshape_websocket), Mount("/", app=upstream_app)])
 
 
+def main():
+    import faulthandler
+    import os
+    import traceback
+
+    try:
+        state_dir().mkdir(parents=True, exist_ok=True)
+        crash = open(crash_file(), "a", encoding="utf-8")
+        faulthandler.enable(crash, all_threads=True)
+    except OSError:
+        pass
+    log_event(f"Onshape bridge starting pid {os.getpid()}")
+    try:
+        uvicorn.run(app, host="127.51.68.120", port=8181, ssl_certfile=CERT_FILE, ssl_keyfile=KEY_FILE)
+    except Exception:
+        log_event(traceback.format_exc())
+        raise
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.51.68.120", port=8181, ssl_certfile=CERT_FILE, ssl_keyfile=KEY_FILE)
+    main()

@@ -2,7 +2,7 @@
 
 Use a 3Dconnexion SpaceMouse, SpacePilot, or SpaceNavigator with Onshape on Linux. The launcher installs the driver and the local Onshape bridge, gives you a live input test, and lets you tune motion and map buttons.
 
-An [Akita Engineering](https://www.akitaengineering.com) project.
+The [GPLv3](LICENSE) Community Edition is an [Akita Engineering](https://www.akitaengineering.com) project.
 
 ## Get started
 
@@ -103,6 +103,20 @@ spacemouse uninstall
 ```
 
 Uninstall removes the user launcher and isolated bridge. It keeps your profiles, `/etc/spnavrc`, the distro driver, and shared packages. Add `--purge` to remove saved button profiles. Add `--restore-driver` to remove an upstream daemon installed by this project and return to the distro service.
+
+## Paid setup, fleet deployment, and support
+
+Akita Engineering offers paid services for individuals and teams.
+
+- **Setup** covers the Linux driver, the Onshape browser setup, and device tuning and button profiles.
+- **Fleet deployment** helps teams plan a rollout across Linux workstations and standardize installation and device settings.
+- **Support** helps diagnose driver, browser, or device input problems.
+
+For a quote, tell us your Linux distributions, device models, and the number of workstations. [Email Akita Engineering](mailto:info@akitaengineering.com?subject=Akita%20SpaceMouse%20services)
+
+## License
+
+Copyright © 2026 Akita Engineering. The Community Edition is licensed under the GNU General Public License version 3.0 only (GPL-3.0-only). [Full license text](LICENSE)
 
 ## Development and credits
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.1 — 2026-11-22
+
+- Licensed the Community Edition under GPLv3.
+- Added contact information for paid setup, fleet deployment, and support.
+
 ## v1.0.0 — 2026-11-22
 
 First official Akita Engineering release.

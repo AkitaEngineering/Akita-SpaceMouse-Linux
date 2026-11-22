@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Use spacenav-ws for Onshape with complete packets and predictable disconnects."""
 
 import asyncio

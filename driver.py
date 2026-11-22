@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Device diagnostics and live configuration through spacenavd's Unix socket."""
 
 import argparse

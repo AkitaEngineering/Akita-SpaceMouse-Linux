@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+app_dir=$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")
+user_app_dir=${XDG_DATA_HOME:-"$HOME/.local/share"}/spacemouse
+server_url=https://127.51.68.120:8181
+onshape_url=https://cad.onshape.com/documents
+service=spacenavd.service
+
+usage() {
+    cat <<'HELP'
+Akita SpaceMouse for Linux
+An Akita Engineering project • https://www.akitaengineering.com
+
+Usage: spacemouse [command] [options]
+
+  serve [--no-browser]     Start the Onshape bridge and open its test page (default)
+  onshape [--no-browser]   Start the bridge and open Onshape
+  install                 Install or update the launcher, bridge, and Linux driver
+  uninstall               Remove the launcher and bridge (--dry-run previews changes)
+  doctor                  Check the local bridge and identify your device
+  test                    Watch motion and button events live
+  tune                    Show or adjust spacenavd motion settings
+  buttons                 Show or edit Onshape button mappings
+  --version               Show the installed release version
+
+Run spacemouse <command> --help for command options.
+HELP
+}
+
+fail() {
+    printf '%s\n' "$*" >&2
+    exit 1
+}
+
+driver() {
+    command -v python3 >/dev/null || fail "Python 3 is missing. Run ./spacemouse install."
+    exec python3 "$app_dir/driver.py" "$@"
+}
+
+bridge_ready() {
+    command -v curl >/dev/null && curl --noproxy '*' --insecure --fail --silent \
+        --max-time 1 "$server_url/3dconnexion/nlproxy" >/dev/null
+}
+
+serve() {
+    local browser_url=$1
+    shift
+    case ${1:-} in
+        --no-browser) browser_url=; shift ;;
+        -h|--help) usage; return ;;
+    esac
+    [[ $# == 0 ]] || { usage >&2; exit 2; }
+
+    if [[ -z ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]] || ! command -v xdg-open >/dev/null; then
+        browser_url=
+    fi
+    if bridge_ready; then
+        printf 'Onshape bridge is already running at %s\n' "$server_url"
+        if [[ -n $browser_url ]]; then
+            xdg-open "$browser_url" >/dev/null 2>&1 &
+        fi
+        return
+    fi
+
+    (driver socket) || fail "Run spacemouse install, or start the daemon with sudo systemctl start $service."
+    local bridge=("$user_app_dir/uv-tools/spacenav-ws/bin/python")
+    if [[ ! -x ${bridge[0]} ]]; then
+        local uv
+        uv=$(command -v uv) || uv="$HOME/.local/bin/uv"
+        [[ -x $uv ]] || fail "uv is missing. Run ./spacemouse install from the release folder."
+        bridge=("$uv" run --no-project --with spacenav-ws --python ">=3.11" -- python)
+    fi
+
+    printf 'Starting the Onshape bridge at %s\n' "$server_url"
+    printf 'On first use, open this address and accept its certificate in your Onshape browser profile.\n'
+    if [[ -n $browser_url ]] && command -v curl >/dev/null; then
+        (
+            for ((attempt = 0; attempt < 40; attempt++)); do
+                kill -0 "$$" 2>/dev/null || exit 0
+                if bridge_ready; then
+                    exec xdg-open "$browser_url"
+                fi
+                sleep 0.5
+            done
+        ) >/dev/null 2>&1 &
+    fi
+    exec "${bridge[@]}" -B "$app_dir/onshape_bridge.py"
+}
+
+case ${1:-serve} in
+    install) shift; exec "$app_dir/install.sh" "$@" ;;
+    uninstall) shift; exec "$app_dir/install.sh" --uninstall "$@" ;;
+    buttons)
+        shift
+        command -v python3 >/dev/null || fail "Python 3 is missing. Run ./spacemouse install."
+        exec python3 -B "$app_dir/button_profiles.py" "$@"
+        ;;
+    onshape) shift; serve "$onshape_url" "$@" ;;
+    doctor)
+        if [[ ${2:-} == --help || ${2:-} == -h ]]; then
+            printf '%s\n' 'Usage: spacemouse doctor' 'Check the local Onshape bridge and identify the device detected by spacenavd.'
+            exit 0
+        fi
+        [[ $# == 1 ]] || { usage >&2; exit 2; }
+        if bridge_ready; then
+            printf 'Onshape bridge is running at %s\n' "$server_url"
+        else
+            printf 'Onshape bridge is stopped. Run spacemouse to start it.\n'
+        fi
+        driver device
+        ;;
+    test|tune) driver "$@" ;;
+    -h|--help|help) usage ;;
+    --version)
+        [[ $# == 1 ]] || { usage >&2; exit 2; }
+        printf 'Akita SpaceMouse for Linux %s\n' "$(<"$app_dir/VERSION")"
+        ;;
+    serve) [[ $# == 0 ]] || shift; serve "$server_url" "$@" ;;
+    --no-browser) serve "$server_url" "$@" ;;
+    *) printf 'Unknown command %s.\n' "$1" >&2; usage >&2; exit 2 ;;
+esac

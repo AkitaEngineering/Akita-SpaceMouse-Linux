@@ -6,6 +6,8 @@ The [GPLv3](LICENSE) Community Edition is an [Akita Engineering](https://www.aki
 
 ## Get started
 
+Install and run the Community Edition on as many compatible Linux machines as you like. The installer uses public downloads and runs without an Akita account or licence key. Paid setup, fleet deployment, and support are optional.
+
 You need a Linux desktop with systemd, internet access, and sudo access for system setup. The installer supports Arch Linux and CachyOS, Debian, Ubuntu, Fedora, and derivatives that use the corresponding package repositories.
 
 1. Open the [latest GitHub release](https://github.com/AkitaEngineering/Akita-SpaceMouse-Linux/releases/latest) and download the named `.tar.gz` archive. Extract it and open a terminal in the extracted folder.

@@ -359,5 +359,5 @@ fi
 
 printf '\nInstalled Akita SpaceMouse for Linux %s.\n' "$(<"$app_dir/VERSION")"
 printf 'For first-time Onshape setup, run ./spacemouse to open the bridge test page.\n'
-printf 'After setup, run spacemouse onshape or %s/spacemouse onshape.\n' "$bin_dir"
+printf 'After setup, run spacemouse onshape or %q onshape.\n' "$bin_dir/spacemouse"
 printf 'Use spacemouse doctor to check your device and spacemouse --help for all commands.\n'

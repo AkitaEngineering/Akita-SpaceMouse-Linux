@@ -4,7 +4,11 @@
 import asyncio
 from contextlib import suppress
 from dataclasses import replace
+import json
 import logging
+import os
+from time import monotonic
+from uuid import uuid4
 
 import numpy as np
 import uvicorn
@@ -16,9 +20,12 @@ from starlette.applications import Starlette
 from starlette.routing import Mount, WebSocketRoute
 from starlette.websockets import WebSocketDisconnect
 
-from button_profiles import ROLLS, VIEWS, button_action, detect_model, load_profiles
+from button_profiles import (
+    MAX_SPEED, MIN_SPEED, ROLLS, VIEWS, action_name, button_action, connected_model, load_profiles, load_speeds,
+)
 from diagnostics import crash_file, log_event, state_dir
 from driver import PACKET, SOCKET_PATH
+from lcd_state import controls_dir, write_atomic
 
 
 VIEW_DIRECTIONS = {
@@ -78,11 +85,14 @@ async def fit_view(controller):
 
 
 class Navigation:
-    def __init__(self):
+    def __init__(self, speed):
         self.pan_zoom = True
         self.rotation = True
         self.dominant = False
-        self.speed = 1.0
+        self.speed = speed
+        self.input_at = 0.0
+        self.action = ""
+        self.action_until = 0.0
 
     def motion(self, event):
         axes = {name: getattr(event, name) * self.speed if self.pan_zoom else 0 for name in TRANSLATION}
@@ -112,16 +122,41 @@ class Navigation:
         elif action == "dominant-toggle":
             self.dominant = not self.dominant
         elif action == "speed-up":
-            self.speed = min(self.speed * 1.25, 4.0)
+            self.speed = min(self.speed * 1.25, MAX_SPEED)
         elif action == "speed-down":
-            self.speed = max(self.speed / 1.25, 0.25)
+            self.speed = max(self.speed / 1.25, MIN_SPEED)
+
+        if action != "none":
+            self.action = {
+                "rotation-toggle": "Rotation unlocked" if self.rotation else "Rotation locked",
+                "pan-zoom-toggle": "Pan and zoom unlocked" if self.pan_zoom else "Pan and zoom locked",
+                "dominant-toggle": "Dominant axis on" if self.dominant else "Dominant axis off",
+            }.get(action, action_name(action))
+            self.action_until = monotonic() + 2.5
+
+
+def initial_speed() -> float:
+    try:
+        speed = float(os.environ.get("SPACEMOUSE_ONSHAPE_SENSITIVITY", "1"))
+        if MIN_SPEED <= speed <= MAX_SPEED:
+            return speed
+    except ValueError:
+        pass
+    logging.warning("Set SPACEMOUSE_ONSHAPE_SENSITIVITY between %g and %g. Using 1.", MIN_SPEED, MAX_SPEED)
+    return 1.0
+
+
+def speed_for_device():
+    model = connected_model()
+    try:
+        return model, load_speeds().get(model)
+    except (OSError, ValueError) as error:
+        logging.warning("Using the default motion speed. %s", error)
+        return model, None
 
 
 def action_for(button):
-    try:
-        model = detect_model()
-    except (OSError, RuntimeError):
-        model = "generic"
+    model = connected_model()
     try:
         profiles = load_profiles()
     except (OSError, ValueError) as error:
@@ -130,22 +165,59 @@ def action_for(button):
     return button_action(model, button, profiles)
 
 
-async def stream_input(controller, reader):
-    navigation = Navigation()
+async def stream_input(controller, reader, navigation=None):
+    if navigation is None:
+        navigation = Navigation(initial_speed())
+    default_speed = navigation.speed
+    speed_profile = None
+    check_speed_at = 0.0
+    now = asyncio.get_running_loop().time
     while True:
         packet = PACKET.unpack(await reader.readexactly(PACKET.size))
         kind, button, *_ = packet
-        if not (controller.focus and controller.subscribed):
+        if kind not in (0, 1) or not (controller.focus and controller.subscribed):
             continue
         if controller.client_metadata.get("name") not in ("Onshape", "WebThreeJS Sample"):
             continue
+        if now() >= check_speed_at:
+            profile = await asyncio.to_thread(speed_for_device)
+            if profile != speed_profile:
+                speed_profile = profile
+                _, speed = profile
+                navigation.speed = default_speed if speed is None else speed
+            check_speed_at = now() + 1
+            if not (controller.focus and controller.subscribed):
+                continue
+        navigation.input_at = monotonic()
         if kind == 0:
             event = navigation.motion(from_message(packet))
             await controller.update_client(event)
-        elif kind == 1:
+        else:
             action = await asyncio.to_thread(action_for, button)
             if controller.focus and controller.subscribed:
                 await navigation.press(controller, from_message(packet), action)
+
+
+async def publish_controls(controller, navigation):
+    path = controls_dir() / f"{uuid4().hex}.json"
+    published = None
+    published_at = 0.0
+    try:
+        while True:
+            with suppress(OSError):
+                if controller.focus and controller.subscribed:
+                    state = vars(navigation).copy()
+                    now = monotonic()
+                    if state != published or now - published_at >= 1:
+                        write_atomic(path, json.dumps({**state, "updated": now}).encode())
+                        published, published_at = state, now
+                elif published is not None:
+                    path.unlink(missing_ok=True)
+                    published = None
+            await asyncio.sleep(0.25)
+    finally:
+        with suppress(OSError):
+            path.unlink(missing_ok=True)
 
 
 async def onshape_websocket(websocket):
@@ -159,9 +231,12 @@ async def onshape_websocket(websocket):
     try:
         log_event("Onshape client connected")
         controller = await create_mouse_controller(WampSession(websocket), reader)
+        navigation = Navigation(initial_speed())
         async with asyncio.TaskGroup() as tasks:
-            tasks.create_task(stream_input(controller, reader))
+            tasks.create_task(stream_input(controller, reader, navigation))
             tasks.create_task(controller.wamp_state_handler.start_wamp_message_stream())
+            if controller.client_metadata.get("name") == "Onshape":
+                tasks.create_task(publish_controls(controller, navigation))
     except* WebSocketDisconnect:
         log_event("Onshape client disconnected")
     except* (asyncio.IncompleteReadError, ConnectionError):
@@ -179,7 +254,6 @@ app = Starlette(routes=[WebSocketRoute("/", onshape_websocket), Mount("/", app=u
 
 def main():
     import faulthandler
-    import os
     import traceback
 
     try:

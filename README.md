@@ -23,7 +23,7 @@ You need a Linux desktop with systemd, internet access, and sudo access for syst
 
 After setup, run `spacemouse onshape` from any folder. If your shell cannot find it, run `~/.local/bin/spacemouse onshape` or use `./spacemouse onshape` from the extracted folder. Run `spacemouse --help` for commands and `spacemouse --version` for the installed version.
 
-The installer enables `spacenavd`, downloads the latest stable upstream driver when the distro package is older, and checks the source archive against its published SHA-256 digest. It installs the Onshape bridge in an isolated Python environment for your user account. Your driver configuration lives in `/etc/spnavrc`.
+The installer enables `spacenavd` at boot, downloads the latest stable upstream driver when the distro package is older, and checks the source archive against its published SHA-256 digest. It installs the Onshape bridge in an isolated Python environment and starts it as a background service that runs automatically when you sign in. Your driver configuration lives in `/etc/spnavrc`.
 
 ### Verify the download
 
@@ -35,7 +35,11 @@ Download `SHA256SUMS` alongside the archive. Open a terminal in the download fol
 2. Install a userscript manager in that browser profile and enable the [Onshape Linux userscript recommended by spacenav-ws](https://github.com/RmStorm/spacenav-ws#usage). It allows Onshape to look for the local bridge on Linux.
 3. Open or reload an Onshape Part Studio or Assembly. If the browser requests local or loopback access, allow it for Onshape. Click in the viewport and move the cap. [Chrome site permissions](https://support.google.com/chrome/answer/114662)
 
-For everyday use, `spacemouse onshape` starts the bridge if needed and opens Onshape. The bridge listens on this computer only. Leave its terminal open while you work and press Ctrl+C in that terminal to stop it. Use `spacemouse serve --no-browser` to start it without opening a tab.
+For everyday use, open Onshape in your browser or run `spacemouse onshape`. The background bridge listens on this computer only and restarts automatically if it exits. Use `spacemouse serve --no-browser` to start it without opening a tab.
+
+To check the bridge service or temporarily stop it, run `systemctl --user status spacemouse-bridge.service` or `systemctl --user stop spacemouse-bridge.service`. To turn automatic startup off or back on, use `systemctl --user disable --now spacemouse-bridge.service` or `systemctl --user enable --now spacemouse-bridge.service`. Running the installer enables it again.
+
+To start the bridge before sign-in and keep it running after sign-out, run `loginctl enable-linger "$USER"`. This applies to all enabled user services for your account. [systemd user lingering](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html#enable-linger%20%5BUSER%E2%80%A6%5D)
 
 ## Device and app compatibility
 
@@ -45,7 +49,7 @@ For everyday use, `spacemouse onshape` starts the bridge if needed and opens Ons
 | Layerling | Direct browser input | In Chrome or Edge, open a design and choose **Workspace settings → Controls → Connect 3D mouse**. Layerling can also pick up devices the browser recognises as game controllers. [Layerling guide](https://layerling.com/guide/view-and-workplane.html) |
 | Tinkercad | Community Chrome extension using the Gamepad API | Enable [SpaceMouse in TinkerCAD](https://chromewebstore.google.com/detail/spacemouse-in-tinkercad/nhaenepgppfpehodifndkalcidjhkpjo) and move the cap in an open design. Support depends on Chrome recognising the device. |
 
-The SpacePilot Pro and SpaceMouse Pro have dedicated Onshape maps. The SpaceMouse Pro profile covers wired and recognised wireless variants. Other compatible six-axis devices use the generic profile. [FreeSpacenav device support](https://spacenav.sourceforge.net/)
+SpaceMouse Compact and Wireless, SpaceMouse Pro and Pro Wireless, SpacePilot, SpacePilot Pro, and SpaceNavigator have dedicated Onshape profiles. The SpaceMouse Classic and Plus profile uses numeric button IDs. Other compatible six-axis devices use the generic profile. [FreeSpacenav device support](https://spacenav.sourceforge.net/)
 
 Release validation covered device detection on CachyOS with a SpacePilot Pro, a public Onshape document in Chromium, and simulated motion and button input. The SpaceMouse Pro profile was tested with simulated input. Layerling's device control and Linux access to the SpacePilot Pro were checked. Physical navigation in Layerling and Tinkercad remains unverified.
 
@@ -60,7 +64,20 @@ spacemouse tune --save
 
 `tune` shows the current settings. A multiplier of 1 is normal. Raise the dead zone slightly if the view drifts when you let go of the cap. Changes apply immediately to all apps using `spacenavd`. Use `--save` to keep them across restarts, or `--restore` to reload the saved settings. Use each direct-input app's own controls for Layerling or Tinkercad.
 
+For Onshape, open **SpaceMouse Settings**, select your model, and clear **Use bridge default** to adjust **Overall speed**. Choose a multiplier from `0.25` to `4`. The panel saves each profile's speed and the bridge picks it up while you work. **Use bridge default** restores the default speed for that profile.
+
+The bridge default is `1` unless you set `SPACEMOUSE_ONSHAPE_SENSITIVITY` in a systemd user-service drop-in. Run `systemctl --user edit spacemouse-bridge.service` to set it.
+
+```ini
+[Service]
+Environment=SPACEMOUSE_ONSHAPE_SENSITIVITY=0.5
+```
+
+Run `systemctl --user restart spacemouse-bridge.service` to apply it to new Onshape connections.
+
 ## Onshape button mappings
+
+Open **Application Launcher → System → SpaceMouse Settings** in KDE Plasma, or run `spacemouse settings`. Select a device profile and choose an action for each button. The app starts on the detected profile when available. You can edit any profile with the device unplugged, show numeric button IDs, and select **Default** to reset an assignment. Changes save automatically and take effect on the next button press.
 
 Fit, labelled view buttons, and rotation lock have default actions on the Pro models. The SpacePilot Pro also has defaults for roll, pan/zoom lock, dominant axis, and speed. Mapped buttons run once per press in the focused Onshape viewport.
 
@@ -80,13 +97,36 @@ spacemouse buttons --model spacemouse-pro set key-1 fit
 spacemouse buttons --model spacepilot-pro list
 ```
 
-Assignments take effect on the next press and are saved in `~/.config/spacemouse/buttons.json`, or under your configured `XDG_CONFIG_HOME`. Navigation locks and speed changes apply to the current Onshape viewport session. Layerling and the Tinkercad extension handle their own buttons.
+The app saves button assignments in `~/.config/spacemouse/buttons.json` and overall speeds in `speeds.json` in the same directory, or under your configured `XDG_CONFIG_HOME`. The speed and navigation lock buttons adjust the current Onshape viewport session. Layerling and the Tinkercad extension handle their own buttons.
+
+## SpacePilot Pro LCD
+
+Run `spacemouse display` to stream to the SpacePilot Pro's built-in LCD. With an Onshape viewport focused, the LCD shows the live speed, pan and zoom lock, rotation lock, dominant-axis mode, and a brief confirmation when you trigger a mapped action. When the viewport loses focus or closes, the dashboard shows the clock, saved speed, and the first four key assignments. Use `spacemouse display --once` to refresh the LCD once.
+
+Open **SpaceMouse Settings → LCD…** to pin a CAD view.
+
+- **Capture region…** opens KDE Spectacle so you can select the viewport in Onshape or FreeCAD.
+- **Pin image…** opens a local PNG or JPEG, such as an exported FreeCAD render or a saved screenshot.
+- **Clear snapshot** returns the screen to the live controls or dashboard.
+
+The snapshot fits the LCD while keeping its proportions. It stays pinned across sessions and shows a compact controls caption while you work in Onshape.
+
+Run `spacemouse display --notifications` in KDE Plasma to show the app name and summary of incoming desktop notifications briefly. The display then returns to the current CAD view or dashboard. Press Ctrl+C to stop streaming.
+
+If Linux denies LCD access, add this rule to `/etc/udev/rules.d/70-akita-spacepilot-pro-lcd.rules`, run `sudo udevadm control --reload-rules`, and reconnect the device.
+
+```udev
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="046d", ATTR{idProduct}=="c629", TAG+="uaccess"
+```
+
+The display uses the LCD interface documented by [3dxdisp-pro](https://github.com/MiguelDLM/3dxdisp-pro) and [libg19](https://github.com/jgeboski/libg19). `spacenavd` continues to handle motion and buttons.
 
 ## Troubleshooting
 
 | What you see | What to check |
 | --- | --- |
 | `doctor` cannot reach the driver | Run `systemctl status spacenavd.service` and `journalctl -u spacenavd.service -b`. Use `./spacemouse install` from the release folder to finish setup. |
+| `doctor` says the bridge is stopped | Run `systemctl --user status spacemouse-bridge.service` and `journalctl --user -u spacemouse-bridge.service -b`. Use `systemctl --user start spacemouse-bridge.service` to start it. |
 | The driver is running and the device is missing | Reconnect the USB cable or receiver and run `spacemouse doctor` again. Older serial models need a port set in [`/etc/spnavrc`](https://github.com/FreeSpacenav/spacenavd/blob/v1.4/doc/example-spnavrc). |
 | The device is detected and Onshape is still | Run `spacemouse test` and move the cap. If events appear, visit the local test page, check the certificate exception and userscript in the same browser profile, and reload the Onshape document. |
 | You want Akita to look at a problem | Run `spacemouse support`, then `spacemouse support bundle`, and email the archive. |
@@ -96,16 +136,16 @@ If you report a problem, include the launcher version, Linux distribution, devic
 
 ## Update or uninstall
 
-To update, download and extract the new release, then run `./spacemouse install` from that folder. Restart the running bridge to load the update.
+To update, download and extract the new release, then run `./spacemouse install` from that folder. The installer restarts the background bridge to load the update. If you started the bridge in a terminal with an older version, stop it with Ctrl+C before updating.
 
-Close the bridge terminal before uninstalling.
+Uninstall stops and disables the background bridge before removing it.
 
 ```sh
 spacemouse uninstall --dry-run
 spacemouse uninstall
 ```
 
-Uninstall removes the user launcher and isolated bridge. It keeps your profiles, `/etc/spnavrc`, the distro driver, and shared packages. Add `--purge` to remove saved button profiles. Add `--restore-driver` to remove an upstream daemon installed by this project and return to the distro service.
+Uninstall removes the settings app, its menu entry, the user launcher, and the isolated bridge. It keeps your profiles, `/etc/spnavrc`, the distro driver, and shared packages. Add `--purge` to remove saved button profiles and motion speeds. Add `--restore-driver` to remove an upstream daemon installed by this project and return to the distro service.
 
 ## Paid setup, fleet deployment, and support
 

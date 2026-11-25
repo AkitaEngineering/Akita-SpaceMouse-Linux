@@ -7,10 +7,21 @@ data_dir=${XDG_DATA_HOME:-"$HOME/.local/share"}
 app_dir=$data_dir/spacemouse
 bin_dir=$HOME/.local/bin
 service=spacenavd.service
+bridge_service=spacemouse-bridge.service
+tray_service=spacemouse-tray.service
+lcd_service=spacemouse-lcd.service
+unit_dir=${XDG_CONFIG_HOME:-"$HOME/.config"}/systemd/user
+bridge_unit=$unit_dir/$bridge_service
+tray_unit=$unit_dir/$tray_service
+lcd_unit=$unit_dir/$lcd_service
+desktop_id=com.akitaengineering.SpaceMouseSettings.desktop
+settings_launcher=$data_dir/applications/$desktop_id
+installed_header='# Installed by Akita SpaceMouse'
 daemon_dir=/usr/local/lib/spacemouse
 override=/etc/systemd/system/$service.d/60-spacemouse.conf
 config_dir=${XDG_CONFIG_HOME:-"$HOME/.config"}/spacemouse
-app_files=(driver.py button_profiles.py onshape_bridge.py catalog.py agreement.py diagnostics.py support_desk.py akita-support.pub install.sh spacemouse VERSION)
+app_files=(driver.py button_profiles.py settings.py tray.py onshape_bridge.py spacepilot_display.py lcd_state.py catalog.py agreement.py diagnostics.py support_desk.py akita-support.pub install.sh spacemouse VERSION
+    icons/akita-spacemouse.png icons/akita-spacemouse-ready.png icons/akita-spacemouse-warning.png)
 
 fail() {
     printf 'Akita SpaceMouse: %s\n' "$*" >&2
@@ -20,6 +31,140 @@ fail() {
 lock_installation() {
     exec {lock_fd}<"$data_dir"
     flock -x "$lock_fd"
+}
+
+owns_file() {
+    [[ -f $1 && ! -L $1 ]] && grep -Fxq -- "$installed_header" "$1"
+}
+
+systemd_quote() {
+    local value=$1
+    value=${value//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//%/%%}
+    value=${value//$'\n'/\\n}
+    value=${value//$'\r'/\\r}
+    printf '"%s"' "$value"
+}
+
+unit_environment() {
+    local variable
+    for variable in XDG_CONFIG_HOME XDG_STATE_HOME; do
+        if [[ -n ${!variable:-} ]]; then
+            printf 'Environment=%s\n' "$(systemd_quote "$variable=${!variable}")"
+        fi
+    done
+}
+
+install_bridge_unit() {
+    local python=$app_dir/uv-tools/spacenav-ws/bin/python
+    {
+        cat <<UNIT
+$installed_header
+[Unit]
+Description=Akita SpaceMouse Onshape bridge
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStartPre=$(systemd_quote ":$python") -B $(systemd_quote "$app_dir/driver.py") socket
+ExecStart=$(systemd_quote ":$python") -B $(systemd_quote "$app_dir/onshape_bridge.py")
+Restart=always
+RestartSec=5s
+UNIT
+        unit_environment
+        printf '\n[Install]\nWantedBy=default.target\n'
+    } > "$temp_dir/$bridge_service"
+
+    mkdir -p -- "${bridge_unit%/*}"
+    install -m 0644 "$temp_dir/$bridge_service" "$bridge_unit"
+    if ! systemctl --user enable "$bridge_unit" || ! systemctl --user restart "$bridge_service"; then
+        fail "Could not enable and start the Onshape bridge. See journalctl --user -u $bridge_service."
+    fi
+}
+
+install_desktop_units() {
+    local unit program description argument
+    for unit in "$lcd_service" "$tray_service"; do
+        if [[ $unit == "$tray_service" ]]; then
+            program=tray.py
+            description='Akita SpaceMouse tray icon'
+            argument=
+        else
+            program=spacepilot_display.py
+            description='Akita SpaceMouse LCD stream'
+            argument=' --saved-notifications'
+        fi
+        {
+            cat <<UNIT
+$installed_header
+[Unit]
+Description=$description
+PartOf=graphical-session.target
+
+[Service]
+Type=exec
+ExecStart=:/usr/bin/python3 -B $(systemd_quote "$app_dir/$program")$argument
+Restart=on-failure
+RestartSec=4s
+UNIT
+            unit_environment
+            printf '\n[Install]\nWantedBy=graphical-session.target\n'
+        } > "$temp_dir/$unit"
+        install -m 0644 "$temp_dir/$unit" "$unit_dir/$unit"
+    done
+    systemctl --user enable "$tray_unit" || fail "Could not enable the SpaceMouse tray."
+    if systemctl --user is-active --quiet "$lcd_service"; then
+        systemctl --user restart "$lcd_service"
+    fi
+    if systemctl --user is-active --quiet graphical-session.target; then
+        systemctl --user restart "$tray_service"
+    fi
+}
+
+desktop_string() {
+    local value=$1
+    value=${value//\\/\\\\}
+    value=${value//$'\n'/\\n}
+    value=${value//$'\r'/\\r}
+    value=${value//$'\t'/\\t}
+    printf '%s' "$value"
+}
+
+desktop_quote() {
+    local value=$1
+    value=${value//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//\$/\\\$}
+    value=${value//\`/\\\`}
+    value=${value//%/%%}
+    # The desktop entry parser unescapes the entire value before parsing Exec arguments.
+    printf '"%s"' "$(desktop_string "$value")"
+}
+
+install_settings_launcher() {
+    {
+        cat <<DESKTOP
+$installed_header
+[Desktop Entry]
+Type=Application
+Name=SpaceMouse Settings
+Comment=Configure SpaceMouse buttons and speed for Onshape
+Icon=$(desktop_string "$app_dir/icons/akita-spacemouse.png")
+Categories=Settings;HardwareSettings;
+Keywords=SpaceMouse;SpacePilot;3Dconnexion;Onshape;CAD;
+Terminal=false
+StartupNotify=true
+DESKTOP
+        printf 'Exec='
+        if [[ -n ${XDG_CONFIG_HOME:-} ]]; then
+            printf '/usr/bin/env %s ' "$(desktop_quote "XDG_CONFIG_HOME=$XDG_CONFIG_HOME")"
+        fi
+        printf '/usr/bin/python3 -B %s\n' "$(desktop_quote "$app_dir/settings.py")"
+    } > "$temp_dir/$desktop_id"
+
+    mkdir -p -- "${settings_launcher%/*}"
+    install -m 0644 "$temp_dir/$desktop_id" "$settings_launcher"
 }
 
 restore_distro_driver() {
@@ -78,7 +223,7 @@ reload_distro_driver() {
 }
 
 uninstall() {
-    local dry_run=false purge=false restore=false file argument
+    local dry_run=false purge=false restore=false units_removed=false file argument unit
     local launcher=$bin_dir/spacemouse
     local tool=$app_dir/uv-tools/spacenav-ws
     for argument in "$@"; do
@@ -88,7 +233,7 @@ uninstall() {
             --restore-driver) restore=true ;;
             -h|--help)
                 printf '%s\n' 'Usage: spacemouse uninstall [--dry-run] [--purge] [--restore-driver]' \
-                    'Remove the launcher and its isolated bridge. --purge also removes button profiles and the installed service agreement.' \
+                    'Remove the settings app, launcher, tray, LCD stream, and bridge. --purge also removes saved profiles and the installed service agreement.' \
                     '--restore-driver switches any installer-managed upstream daemon back to the distro package.'
                 return ;;
             *) fail "Unknown uninstall option $argument. See spacemouse uninstall --help." ;;
@@ -100,6 +245,25 @@ uninstall() {
         || fail "The SpaceMouse data or config directory is a symbolic link."
     if "$dry_run"; then printf 'Dry run\n'; fi
     if "$restore"; then restore_distro_driver "$dry_run"; fi
+
+    for unit in "$tray_unit" "$lcd_unit" "$bridge_unit"; do
+        if owns_file "$unit"; then
+            printf 'Disable and remove the service in %s\n' "$unit"
+            if ! "$dry_run"; then
+                systemctl --user disable --now "${unit##*/}"
+                unlink -- "$unit"
+                units_removed=true
+            fi
+        fi
+    done
+    if "$units_removed"; then
+        systemctl --user daemon-reload
+    fi
+
+    if owns_file "$settings_launcher"; then
+        printf 'Remove the SpaceMouse Settings menu entry in %s\n' "$settings_launcher"
+        if ! "$dry_run"; then unlink -- "$settings_launcher"; fi
+    fi
 
     if [[ -f "$app_dir/.installed" || $(readlink -- "$launcher" 2>/dev/null) == "$app_dir/spacemouse" ]]; then
         printf 'Remove the launcher and isolated bridge in %s\n' "$app_dir"
@@ -124,7 +288,7 @@ uninstall() {
                     unlink -- "$app_dir/$file"
                 fi
             done
-            for file in "$app_dir/bin" "$app_dir/uv-tools" "$app_dir"; do
+            for file in "$app_dir/bin" "$app_dir/uv-tools" "$app_dir/icons" "$app_dir"; do
                 if [[ -d $file && ! -L $file ]]; then rmdir --ignore-fail-on-non-empty -- "$file"; fi
             done
         fi
@@ -132,9 +296,9 @@ uninstall() {
         printf 'No installed SpaceMouse launcher found.\n'
     fi
     if "$purge"; then
-        printf 'Remove saved button profiles and the service agreement in %s\n' "$config_dir"
+        printf 'Remove saved button profiles, motion speeds, LCD settings, and the service agreement in %s\n' "$config_dir"
         if ! "$dry_run"; then
-            for file in "$config_dir/buttons.json" "$config_dir/buttons.lock" "$config_dir/agreement.json"; do
+            for file in "$config_dir"/{buttons.json,buttons.lock,speeds.json,speeds.lock,lcd-snapshot.png,lcd-notifications,agreement.json}; do
                 if [[ -f $file || -L $file ]]; then unlink -- "$file"; fi
             done
             if [[ -d $config_dir ]]; then rmdir --ignore-fail-on-non-empty -- "$config_dir"; fi
@@ -161,7 +325,8 @@ fi
 
 if [[ ${1:-} == --help || ${1:-} == -h ]]; then
     printf '%s\n' 'Usage: spacemouse install' \
-        'Install or update the Linux driver, Onshape bridge, and user launcher.' \
+        'Install or update the Linux driver, Onshape bridge, settings app, and tray icon.' \
+        'Starts the driver at boot and the Onshape bridge and tray automatically at sign-in.' \
         'Run as your desktop user. The installer uses sudo when it needs to change system packages or services.'
     exit 0
 fi
@@ -172,6 +337,11 @@ fi
 mkdir -p -- "$data_dir"
 lock_installation
 [[ ! -L $app_dir ]] || fail "The SpaceMouse data directory is a symbolic link."
+for file in "$bridge_unit" "$tray_unit" "$lcd_unit" "$settings_launcher"; do
+    if [[ -e $file || -L $file ]]; then
+        owns_file "$file" || fail "$file already exists and is managed outside this installer."
+    fi
+done
 if [[ -e "$bin_dir/spacemouse" || -L "$bin_dir/spacemouse" ]]; then
     [[ $(readlink -- "$bin_dir/spacemouse") == "$app_dir/spacemouse" ]] \
         || fail "$bin_dir/spacemouse already exists. Move it aside to install this launcher."
@@ -182,19 +352,19 @@ fi
 case " ${ID:-} ${ID_LIKE:-} " in
     *' arch '*)
         manager=(pacman -S --needed)
-        runtime_packages=(ca-certificates curl python spacenavd)
+        runtime_packages=(ca-certificates curl python spacenavd python-gobject gtk4 libusb python-cairo libayatana-appindicator)
         build_packages=(gcc make libx11 libxtst)
         package_installed() { pacman -Q "$1" >/dev/null 2>&1; }
         ;;
     *' debian '*|*' ubuntu '*)
         manager=(apt-get install)
-        runtime_packages=(ca-certificates curl python3 spacenavd)
+        runtime_packages=(ca-certificates curl python3 spacenavd python3-gi gir1.2-gtk-4.0 libusb-1.0-0 python3-gi-cairo gir1.2-ayatanaappindicator3-0.1)
         build_packages=(build-essential libx11-dev libxtst-dev)
         package_installed() { [[ $(dpkg-query -W -f='${Status}' "$1" 2>/dev/null) == 'install ok installed' ]]; }
         ;;
     *' fedora '*)
         manager=(dnf install)
-        runtime_packages=(ca-certificates curl python3 spacenavd)
+        runtime_packages=(ca-certificates curl python3 spacenavd python3-gobject gtk4 libusb1 python3-cairo libayatana-appindicator-gtk3)
         build_packages=(gcc make libX11-devel libXtst-devel)
         package_installed() {
             # Fedora also provides the curl command in curl-minimal.
@@ -345,7 +515,7 @@ printf 'Installing the latest spacenav-ws bridge.\n'
 UV_TOOL_DIR="$app_dir/uv-tools" UV_TOOL_BIN_DIR="$app_dir/bin" \
     "$uv" --quiet tool install --upgrade --python '>=3.11' spacenav-ws
 
-install -d -m 0755 "$app_dir" "$bin_dir"
+install -d -m 0755 "$app_dir/icons" "$bin_dir"
 for file in "${app_files[@]}"; do
     if [[ ! "$source_dir/$file" -ef "$app_dir/$file" ]]; then
         mode=0644
@@ -357,9 +527,14 @@ touch -- "$app_dir/.installed"
 if [[ ! -L "$bin_dir/spacemouse" ]]; then
     ln -s -- "$app_dir/spacemouse" "$bin_dir/spacemouse"
 fi
+install_settings_launcher
+install_bridge_unit
+install_desktop_units
 
 python3 -B "$app_dir/diagnostics.py" log "install finished $(<"$app_dir/VERSION")" || true
 printf '\nInstalled Akita SpaceMouse for Linux %s.\n' "$(<"$app_dir/VERSION")"
+printf 'The Onshape bridge and the SpaceMouse tray start automatically when you sign in.\n'
+printf 'Open SpaceMouse Settings from your applications menu to configure buttons and speed.\n'
 printf 'For first-time Onshape setup, run ./spacemouse to open the bridge test page.\n'
 printf 'After setup, run spacemouse onshape or %q onshape.\n' "$bin_dir/spacemouse"
 printf 'Use spacemouse doctor to check your device and spacemouse --help for all commands.\n'

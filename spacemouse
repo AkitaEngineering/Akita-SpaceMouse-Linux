@@ -7,6 +7,8 @@ user_app_dir=${XDG_DATA_HOME:-"$HOME/.local/share"}/spacemouse
 server_url=https://127.51.68.120:8181
 onshape_url=https://cad.onshape.com/documents
 service=spacenavd.service
+bridge_service=spacemouse-bridge.service
+bridge_unit=${XDG_CONFIG_HOME:-"$HOME/.config"}/systemd/user/$bridge_service
 
 usage() {
     cat <<'HELP'
@@ -19,12 +21,14 @@ Usage: spacemouse [command] [options]
 
   serve [--no-browser]     Start the Onshape bridge and open its test page (default)
   onshape [--no-browser]   Start the bridge and open Onshape
-  install                 Install or update the launcher, bridge, and Linux driver
-  uninstall               Remove the launcher and bridge (--dry-run previews changes)
+  install                 Install or update the driver, bridge, launcher, and settings app
+  uninstall               Remove the launcher, bridge, and settings app (--dry-run previews changes)
   doctor                  Check the local bridge and identify your device
   test                    Watch motion and button events live
   tune                    Show or adjust spacenavd motion settings
   buttons                 Show or edit Onshape button mappings
+  settings                Open the GTK 4 settings app for Onshape buttons and speed
+  display                 Stream CAD controls and snapshots to the SpacePilot Pro LCD
   agreement               Show or install a paid service agreement
   support                 Show readable logs, or write a support bundle
   desk                    Check a support bundle against its service agreement
@@ -54,26 +58,18 @@ bridge_ready() {
         --max-time 1 "$server_url/3dconnexion/nlproxy" >/dev/null
 }
 
-serve() {
+wait_for_bridge() {
+    local attempt
+    for ((attempt = 0; attempt < 40; attempt++)); do
+        kill -0 "$$" 2>/dev/null || return 1
+        if bridge_ready; then return 0; fi
+        sleep 0.5
+    done
+    return 1
+}
+
+serve_foreground() {
     local browser_url=$1
-    shift
-    case ${1:-} in
-        --no-browser) browser_url=; shift ;;
-        -h|--help) usage; return ;;
-    esac
-    [[ $# == 0 ]] || { usage >&2; exit 2; }
-
-    if [[ -z ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]] || ! command -v xdg-open >/dev/null; then
-        browser_url=
-    fi
-    if bridge_ready; then
-        printf 'Onshape bridge is already running at %s\n' "$server_url"
-        if [[ -n $browser_url ]]; then
-            xdg-open "$browser_url" >/dev/null 2>&1 &
-        fi
-        return
-    fi
-
     (driver socket) || fail "Run spacemouse install, or start the daemon with sudo systemctl start $service."
     local bridge=("$user_app_dir/uv-tools/spacenav-ws/bin/python")
     if [[ ! -x ${bridge[0]} ]]; then
@@ -87,22 +83,49 @@ serve() {
     printf 'Starting the Onshape bridge at %s\n' "$server_url"
     printf 'On first use, open this address and accept its certificate in your Onshape browser profile.\n'
     if [[ -n $browser_url ]] && command -v curl >/dev/null; then
-        (
-            for ((attempt = 0; attempt < 40; attempt++)); do
-                kill -0 "$$" 2>/dev/null || exit 0
-                if bridge_ready; then
-                    exec xdg-open "$browser_url"
-                fi
-                sleep 0.5
-            done
-        ) >/dev/null 2>&1 &
+        (wait_for_bridge && exec xdg-open "$browser_url") >/dev/null 2>&1 &
     fi
     exec "${bridge[@]}" -B "$app_dir/onshape_bridge.py"
+}
+
+serve() {
+    local browser_url=$1
+    shift
+    case ${1:-} in
+        --no-browser) browser_url=; shift ;;
+        -h|--help) usage; return ;;
+    esac
+    [[ $# == 0 ]] || { usage >&2; exit 2; }
+
+    if [[ -z ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]] || ! command -v xdg-open >/dev/null; then
+        browser_url=
+    fi
+    if ! bridge_ready; then
+        if [[ -f $bridge_unit ]] && systemctl --user is-enabled --quiet "$bridge_service"; then
+            systemctl --user start "$bridge_service" && wait_for_bridge \
+                || fail "The Onshape bridge did not become ready. See journalctl --user -u $bridge_service."
+        else
+            serve_foreground "$browser_url"
+        fi
+    fi
+    printf 'Onshape bridge is running at %s\n' "$server_url"
+    if [[ -n $browser_url ]]; then
+        xdg-open "$browser_url" >/dev/null 2>&1 &
+    fi
 }
 
 case ${1:-serve} in
     install) shift; exec "$app_dir/install.sh" "$@" ;;
     uninstall) shift; exec "$app_dir/install.sh" --uninstall "$@" ;;
+    display) shift; exec /usr/bin/python3 -B "$app_dir/spacepilot_display.py" "$@" ;;
+    settings)
+        if [[ ${2:-} == --help || ${2:-} == -h ]]; then
+            printf '%s\n' 'Usage: spacemouse settings' 'Open the GTK 4 settings app for Onshape buttons and speed.'
+            exit 0
+        fi
+        [[ $# == 1 ]] || { usage >&2; exit 2; }
+        exec /usr/bin/python3 -B "$app_dir/settings.py"
+        ;;
     buttons)
         shift
         command -v python3 >/dev/null || fail "Python 3 is missing. Run ./spacemouse install."

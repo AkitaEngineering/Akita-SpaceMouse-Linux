@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Per-device Onshape button assignments for spacenavd's logical button IDs."""
+"""Per-device Onshape button assignments and motion speeds."""
 
 import argparse
+from contextlib import contextmanager
 import fcntl
 import json
 import os
@@ -15,8 +16,38 @@ from driver import PACKET, SOCKET_PATH, enable_requests, receive, receive_reply,
 
 
 DEVICE_TYPE = 0x2005
-DEVICE_MODELS = {0x209: "spacepilot-pro", 0x20A: "spacemouse-pro", 0x20D: "spacemouse-pro"}
+# Device type numbers from spacenavd's src/proto.h.
+DEVICE_MODELS = {
+    0x103: "spacemouse-classic",  # Serial Magellan SpaceMouse
+    0x200: "spacemouse-classic",  # SpaceMouse Plus XT
+    0x202: "spacemouse-classic",
+    0x205: "spacepilot",
+    0x206: "spacenavigator",
+    0x208: "spacenavigator",  # SpaceNavigator for Notebooks
+    0x209: "spacepilot-pro",
+    0x20A: "spacemouse-pro",
+    0x20C: "spacemouse",  # SpaceMouse Wireless
+    0x20D: "spacemouse-pro",  # SpaceMouse Pro Wireless
+    0x20F: "spacemouse",  # SpaceMouse Compact
+}
+MODEL_NAMES = {
+    "spacemouse": "SpaceMouse (Compact / Wireless)",
+    "spacemouse-pro": "SpaceMouse Pro / Pro Wireless",
+    "spacepilot": "SpacePilot",
+    "spacepilot-pro": "SpacePilot Pro",
+    "spacenavigator": "SpaceNavigator",
+    "spacemouse-classic": "SpaceMouse Classic / Plus",
+    "generic": "Other SpaceMouse models",
+}
 BUTTON_LABELS = {
+    "spacemouse": ("left-button", "right-button"),
+    "spacenavigator": ("left-button", "right-button"),
+    # The original SpacePilot uses a distinct, contiguous button order.
+    "spacepilot": (
+        "key-1", "key-2", "key-3", "key-4", "key-5", "key-6", "top", "left",
+        "right", "front", "escape", "alt", "shift", "ctrl", "fit", "panel",
+        "plus", "minus", "dominant", "rotate", "config",
+    ),
     # SpacePilot Pro uses the shared 3Dconnexion HID button sequence.
     "spacepilot-pro": (
         "menu", "fit", "top", "left", "right", "front", "bottom", "back",
@@ -29,6 +60,7 @@ BUTTON_LABELS = {
         "key-1", "key-2", "key-3", "key-4", "menu", "fit", "top", "right",
         "front", "iso", "rotate", "escape", "alt", "shift", "ctrl",
     ),
+    "spacemouse-classic": (),
     "generic": (),
 }
 VIEWS = ("front", "back", "top", "bottom", "left", "right", "isometric")
@@ -37,6 +69,18 @@ ACTIONS = (
     *VIEWS, *ROLLS, "fit", "front-fit", "rotation-toggle", "pan-zoom-toggle",
     "dominant-toggle", "speed-up", "speed-down", "none",
 )
+ACTION_NAMES = {
+    "roll-cw": "Roll clockwise",
+    "roll-ccw": "Roll counterclockwise",
+    "fit": "Fit view",
+    "front-fit": "Front view and fit",
+    "rotation-toggle": "Toggle rotation",
+    "pan-zoom-toggle": "Toggle pan and zoom",
+    "dominant-toggle": "Toggle dominant axis",
+    "speed-up": "Increase speed",
+    "speed-down": "Decrease speed",
+    "none": "No action",
+}
 DEFAULT_ACTIONS = {
     **{action: action for action in (*VIEWS, *ROLLS)},
     "fit": "fit",
@@ -48,9 +92,13 @@ DEFAULT_ACTIONS = {
     "dominant": "dominant-toggle",
     "plus": "speed-up",
     "minus": "speed-down",
+    "left-button": "front-fit",
+    "right-button": "front-fit",
 }
 MAX_BUTTON_ID = 63
 BUTTON_IDS = frozenset(str(number) for number in range(MAX_BUTTON_ID + 1))
+MIN_SPEED = 0.25
+MAX_SPEED = 4.0
 
 
 def config_path():
@@ -70,6 +118,13 @@ def detect_model():
     return "generic"
 
 
+def connected_model():
+    try:
+        return detect_model()
+    except (OSError, RuntimeError):
+        return "generic"
+
+
 def load_profiles():
     path = config_path()
     try:
@@ -87,12 +142,44 @@ def load_profiles():
     return profiles
 
 
-def save_assignment(model, button, action):
-    path = config_path()
+def load_speeds():
+    path = config_path().with_name("speeds.json")
+    try:
+        speeds = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    if not isinstance(speeds, dict) or any(
+        model not in MODEL_NAMES or not valid_speed(speed)
+        for model, speed in speeds.items()
+    ):
+        raise ValueError(f"Invalid motion speeds in {path}")
+    return speeds
+
+
+def valid_speed(speed):
+    return type(speed) in (int, float) and MIN_SPEED <= speed <= MAX_SPEED
+
+
+@contextmanager
+def edit_config(path, load):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.with_suffix(".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        profiles = load_profiles()
+        values = load()
+        yield values
+        with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as output:
+            temporary = Path(output.name)
+            try:
+                json.dump(values, output, indent=2, sort_keys=True)
+                output.write("\n")
+                output.close()
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+
+
+def save_assignment(model, button, action):
+    with edit_config(config_path(), load_profiles) as profiles:
         profile = profiles.setdefault(model, {})
         if action is None:
             profile.pop(str(button), None)
@@ -101,15 +188,15 @@ def save_assignment(model, button, action):
         if not profile:
             profiles.pop(model)
 
-        with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as output:
-            temporary = Path(output.name)
-            try:
-                json.dump(profiles, output, indent=2, sort_keys=True)
-                output.write("\n")
-                output.close()
-                temporary.replace(path)
-            finally:
-                temporary.unlink(missing_ok=True)
+
+def save_speed(model, speed):
+    if model not in MODEL_NAMES or (speed is not None and not valid_speed(speed)):
+        raise ValueError("Choose a device profile and a motion speed from 0.25 to 4.")
+    with edit_config(config_path().with_name("speeds.json"), load_speeds) as speeds:
+        if speed is None:
+            speeds.pop(model, None)
+        else:
+            speeds[model] = speed
 
 
 def button_label(model, button):
@@ -117,11 +204,15 @@ def button_label(model, button):
     return labels[button] if 0 <= button < len(labels) else "unlabelled"
 
 
+def action_name(action):
+    return ACTION_NAMES.get(action, action.capitalize())
+
+
 def button_action(model, button, profiles):
     assigned = profiles.get(model, {}).get(str(button))
     if assigned is not None:
         return assigned
-    if model == "generic":
+    if not BUTTON_LABELS[model]:
         return "front-fit"
     return DEFAULT_ACTIONS.get(button_label(model, button), "none")
 

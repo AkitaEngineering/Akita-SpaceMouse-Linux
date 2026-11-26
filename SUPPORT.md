@@ -20,6 +20,21 @@ The launcher log records bridge start, client connect and disconnect, and a fail
 
 The spacenavd journal is the driver log. On a desktop where the user can read the system journal, the bundle copies the last 400 lines. If journalctl cannot read the unit, the bundle says so.
 
+## Bridge, tray, and LCD service logs
+
+Run these commands as the desktop user to inspect the services from the current boot.
+
+```sh
+spacemouse doctor
+journalctl --user -u spacemouse-bridge.service -b
+journalctl --user -u spacemouse-tray.service -b
+journalctl --user -u spacemouse-lcd.service -b
+```
+
+Include the relevant excerpt when reporting an issue with the tray, LCD stream, or bridge startup. For browser certificates, Fedora driver socket permissions, and SpacePilot Pro USB access, see the README. [Troubleshooting](README.md#troubleshooting)
+
+## Core dumps
+
 Core dump files are not copied. They can contain process memory. The bundle only lists matching crashes. If Akita needs the core, ask the customer to confirm and then send that one file:
 
 ```sh

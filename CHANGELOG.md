@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Start the Onshape bridge and KDE Plasma UFO tray automatically at sign-in.
+- Use the GTK 4 settings app to save button mappings and motion speed by model for SpaceMouse, SpacePilot, and SpaceNavigator devices.
+- Show live Onshape controls, pinned Onshape or FreeCAD snapshots, and optional KDE notifications on the SpacePilot Pro LCD.
+- Open settings and snapshots or start and stop the LCD stream from the tray menu.
+
 ## v1.0.3 — 2026-11-22
 
 - Added SKUs, model ASM-LNX-CE, service terms, and the steps for quoting and issuing a service agreement.

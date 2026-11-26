@@ -10,6 +10,7 @@ try:
     import gi
 
     gi.require_version("Gtk", "4.0")
+    gi.require_version("Gdk", "4.0")
     from gi.repository import Gdk, Gio, GLib, Gtk
 except (ImportError, ValueError):
     sys.exit("SpaceMouse Settings requires GTK 4 and PyGObject. Run ./spacemouse install to set them up.")
@@ -342,12 +343,13 @@ class SettingsWindow(Gtk.ApplicationWindow):
 def activate(app):
     window = app.get_active_window() or SettingsWindow(app)
     window.present()
+    return window
 
 
 def command_line(app, command):
-    app.activate()
+    window = activate(app)
     if command.get_options_dict().contains("lcd"):
-        app.get_active_window().open_lcd()
+        window.open_lcd()
     return 0
 
 

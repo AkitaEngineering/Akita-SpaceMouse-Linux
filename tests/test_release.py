@@ -58,7 +58,7 @@ class LauncherTest(unittest.TestCase):
         version = (ROOT / "VERSION").read_text().strip()
         self.assertEqual(self.run_command("--version").strip(), f"Akita SpaceMouse for Linux {version}")
         self.assertIn("akitaengineering.com", self.run_command("--help"))
-        for command in ("install", "uninstall", "doctor", "test", "tune", "buttons", "settings", "display", "onshape", "agreement", "support", "desk"):
+        for command in ("install", "uninstall", "doctor", "test", "tune", "buttons", "settings", "display", "tray", "onshape", "agreement", "support", "desk"):
             with self.subTest(command=command):
                 self.assertIn("spacemouse", self.run_command(command, "--help"))
 
@@ -132,6 +132,7 @@ esac
         (app / "bin" / "spacenav-ws").symlink_to(tool / "bin" / "spacenav-ws")
         shutil.copy2(ROOT / "spacemouse", app / "spacemouse")
         shutil.copy2(ROOT / "settings.py", app / "settings.py")
+        shutil.copytree(ROOT / "icons", app / "icons")
         desktop = app.parent / "applications" / "com.akitaengineering.SpaceMouseSettings.desktop"
         desktop.parent.mkdir()
         desktop.write_text("# Installed by Akita SpaceMouse\n[Desktop Entry]\n")
@@ -139,6 +140,10 @@ esac
         launcher.parent.mkdir(parents=True)
         launcher.symlink_to(app / "spacemouse")
         unit = self.write_bridge_unit()
+        tray = unit.with_name("spacemouse-tray.service")
+        lcd = unit.with_name("spacemouse-lcd.service")
+        for desktop_unit in (tray, lcd):
+            desktop_unit.write_text("# Installed by Akita SpaceMouse\n")
         self.stub_command("systemctl", 'printf "%s\\n" "$*" >> "$HOME/systemctl.log"')
         systemctl_log = Path(self.env["HOME"]) / "systemctl.log"
 
@@ -151,6 +156,8 @@ esac
         preview = self.run_command("uninstall", "--dry-run", "--purge")
         self.assertIn("Dry run", preview)
         self.assertIn(str(unit), preview)
+        self.assertIn(str(tray), preview)
+        self.assertIn(str(lcd), preview)
         self.assertIn(str(desktop), preview)
         self.assertTrue(unit.is_file())
         self.assertTrue(desktop.is_file())
@@ -160,8 +167,12 @@ esac
         self.assertTrue(agreement.is_file())
         self.run_command("uninstall")
         self.assertFalse(unit.exists())
+        self.assertFalse(tray.exists())
+        self.assertFalse(lcd.exists())
         self.assertFalse(desktop.exists())
         self.assertEqual(systemctl_log.read_text().splitlines(), [
+            "--user disable --now spacemouse-tray.service",
+            "--user disable --now spacemouse-lcd.service",
             "--user disable --now spacemouse-bridge.service",
             "--user daemon-reload",
         ])

@@ -27,8 +27,9 @@ Usage: spacemouse [command] [options]
   test                    Watch motion and button events live
   tune                    Show or adjust spacenavd motion settings
   buttons                 Show or edit Onshape button mappings
-  settings                Open the GTK 4 settings app for Onshape buttons and speed
+  settings [--lcd]        Open SpaceMouse Settings or the LCD snapshots window
   display                 Stream CAD controls and snapshots to the SpacePilot Pro LCD
+  tray                    Start the SpaceMouse system tray icon
   agreement               Show or install a paid service agreement
   support                 Show readable logs, or write a support bundle
   desk                    Check a support bundle against its service agreement
@@ -120,11 +121,20 @@ case ${1:-serve} in
     display) shift; exec /usr/bin/python3 -B "$app_dir/spacepilot_display.py" "$@" ;;
     settings)
         if [[ ${2:-} == --help || ${2:-} == -h ]]; then
-            printf '%s\n' 'Usage: spacemouse settings' 'Open the GTK 4 settings app for Onshape buttons and speed.'
+            printf '%s\n' 'Usage: spacemouse settings [--lcd]' 'Open SpaceMouse Settings. --lcd opens the LCD snapshots window.'
+            exit 0
+        fi
+        if [[ $# != 1 && ( $# != 2 || $2 != --lcd ) ]]; then usage >&2; exit 2; fi
+        shift
+        exec /usr/bin/python3 -B "$app_dir/settings.py" "$@"
+        ;;
+    tray)
+        if [[ ${2:-} == --help || ${2:-} == -h ]]; then
+            printf '%s\n' 'Usage: spacemouse tray' 'Start the UFO tray icon in this desktop session.'
             exit 0
         fi
         [[ $# == 1 ]] || { usage >&2; exit 2; }
-        exec /usr/bin/python3 -B "$app_dir/settings.py"
+        exec systemctl --user start spacemouse-tray.service
         ;;
     buttons)
         shift

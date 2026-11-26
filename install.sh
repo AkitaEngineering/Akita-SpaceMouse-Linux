@@ -284,6 +284,7 @@ uninstall() {
                 unlink -- "$launcher"
             fi
             for file in "${app_files[@]}" .installed; do
+                if [[ $file == icons/* && -L "$app_dir/icons" ]]; then continue; fi
                 if [[ -f "$app_dir/$file" || -L "$app_dir/$file" ]]; then
                     unlink -- "$app_dir/$file"
                 fi
@@ -336,7 +337,7 @@ fi
 [[ -r /etc/os-release ]] || fail "Cannot determine the Linux distribution."
 mkdir -p -- "$data_dir"
 lock_installation
-[[ ! -L $app_dir ]] || fail "The SpaceMouse data directory is a symbolic link."
+[[ ! -L $app_dir && ! -L "$app_dir/icons" ]] || fail "The SpaceMouse data or icons directory is a symbolic link."
 for file in "$bridge_unit" "$tray_unit" "$lcd_unit" "$settings_launcher"; do
     if [[ -e $file || -L $file ]]; then
         owns_file "$file" || fail "$file already exists and is managed outside this installer."

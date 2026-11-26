@@ -101,9 +101,9 @@ The app saves button assignments in `~/.config/spacemouse/buttons.json` and over
 
 ## SpacePilot Pro LCD
 
-Run `spacemouse display` to stream to the SpacePilot Pro's built-in LCD. With an Onshape viewport focused, the LCD shows the live speed, pan and zoom lock, rotation lock, dominant-axis mode, and a brief confirmation when you trigger a mapped action. When the viewport loses focus or closes, the dashboard shows the clock, saved speed, and the first four key assignments. Use `spacemouse display --once` to refresh the LCD once.
+Choose **Start LCD** from the UFO tray icon to stream to the SpacePilot Pro's built-in LCD. With an Onshape viewport focused, the LCD shows the live speed, pan and zoom lock, rotation lock, dominant-axis mode, and a brief confirmation when you trigger a mapped action. When the viewport loses focus or closes, the dashboard shows the clock, saved speed, and the first four key assignments. For terminal use, `spacemouse display` streams in the foreground and `spacemouse display --once` refreshes the LCD once.
 
-Open **SpaceMouse Settings → LCD…** to pin a CAD view.
+Open **LCD Snapshots…** from the tray or **SpaceMouse Settings → LCD…** to pin a CAD view.
 
 - **Capture region…** opens KDE Spectacle so you can select the viewport in Onshape or FreeCAD.
 - **Pin image…** opens a local PNG or JPEG, such as an exported FreeCAD render or a saved screenshot.
@@ -111,7 +111,7 @@ Open **SpaceMouse Settings → LCD…** to pin a CAD view.
 
 The snapshot fits the LCD while keeping its proportions. It stays pinned across sessions and shows a compact controls caption while you work in Onshape.
 
-Run `spacemouse display --notifications` in KDE Plasma to show the app name and summary of incoming desktop notifications briefly. The display then returns to the current CAD view or dashboard. Press Ctrl+C to stop streaming.
+Use **Show Plasma notifications on LCD** in the tray to briefly display the app name and summary of incoming notifications. The tray remembers this setting. The display then returns to the current CAD view or dashboard. For a foreground stream with notifications, run `spacemouse display --notifications`.
 
 If Linux denies LCD access, add this rule to `/etc/udev/rules.d/70-akita-spacepilot-pro-lcd.rules`, run `sudo udevadm control --reload-rules`, and reconnect the device.
 
@@ -120,6 +120,10 @@ SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="046d", ATTR{idPro
 ```
 
 The display uses the LCD interface documented by [3dxdisp-pro](https://github.com/MiguelDLM/3dxdisp-pro) and [libg19](https://github.com/jgeboski/libg19). `spacenavd` continues to handle motion and buttons.
+
+## System tray
+
+The UFO icon appears in KDE Plasma's system tray when you sign in. Its green dot means the Onshape bridge service is active. Amber means it needs attention. Use the tray menu for **Open SpaceMouse Settings**, **LCD Snapshots…**, and **Start LCD** or **Stop LCD**. Run `spacemouse tray` to bring back the icon after quitting it.
 
 ## Troubleshooting
 
@@ -138,7 +142,7 @@ If you report a problem, include the launcher version, Linux distribution, devic
 
 To update, download and extract the new release, then run `./spacemouse install` from that folder. The installer restarts the background bridge to load the update. If you started the bridge in a terminal with an older version, stop it with Ctrl+C before updating.
 
-Uninstall stops and disables the background bridge before removing it.
+Uninstall stops and removes the tray, LCD stream, and background bridge.
 
 ```sh
 spacemouse uninstall --dry-run
